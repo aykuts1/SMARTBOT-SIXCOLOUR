@@ -188,7 +188,7 @@ class BybitClient:
 
     # ============= BAKİYE =============
     def fetch_usdt_balance(self) -> float:
-        """Unified hesabın kullanılabilir USDT bakiyesini döndür."""
+        """Unified hesabın toplam equity değerini döndür (açık pozisyonlar dahil)."""
         resp = self._retry(
             self.session.get_wallet_balance,
             accountType=self.ACCOUNT_TYPE,
@@ -201,18 +201,22 @@ class BybitClient:
             return 0.0
 
         account = lst[0]
-        # Unified account'ta totalAvailableBalance kullanılır
-        total_avail = account.get("totalAvailableBalance")
-        if total_avail not in (None, ""):
-            try:
-                return float(total_avail)
-            except (TypeError, ValueError):
-                pass
 
-        # Fallback: coin listesindeki USDT
+        # totalEquity: unrealized PnL dahil gerçek hesap değeri
+        for field in ("totalEquity", "totalWalletBalance", "totalAvailableBalance"):
+            val = account.get(field)
+            if val not in (None, ""):
+                try:
+                    result = float(val)
+                    if result > 0:
+                        return result
+                except (TypeError, ValueError):
+                    continue
+
+        # Fallback: coin listesindeki USDT walletBalance
         for coin_info in account.get("coin", []):
             if coin_info.get("coin") == "USDT":
-                val = coin_info.get("availableToWithdraw") or coin_info.get("walletBalance") or "0"
+                val = coin_info.get("walletBalance") or "0"
                 try:
                     return float(val)
                 except (TypeError, ValueError):
