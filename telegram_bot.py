@@ -181,6 +181,18 @@ def fmt_error(context: str, error: str) -> str:
     return f"🚨 <b>HATA</b> [{safe_ctx}]\n<code>{safe_err[:500]}</code>"
 
 
+def _categorize_rejection(reason: str) -> str:
+    """Rejection reason'ı kategoriye çevir."""
+    r = reason.lower()
+    if "30dk ema" in r:
+        return "30dk EMA"
+    if "2h ema" in r:
+        return "2H EMA"
+    if "atr" in r:
+        return "ATR filtresi"
+    return "Diğer"
+
+
 def fmt_scan_summary(
     scan_time: str,
     total_symbols: int,
@@ -192,40 +204,33 @@ def fmt_scan_summary(
     stake: float,
     leverage: int,
 ) -> str:
-    lines = [
-        "📊 <b>30dk Tarama Özeti</b>",
-        f"⏰ Saat: <b>{scan_time}</b>",
-        f"🔍 Taranan sembol: <b>{total_symbols}</b>",
-    ]
+    lines = []
+    lines.append("📊 <b>30dk Tarama Özeti</b>")
+    lines.append(f"⏰ {scan_time} | {total_symbols} sembol tarandı")
+    lines.append("")
 
-    if opened:
-        opened_str = ", ".join(f"{s} {sd.upper()}" for s, sd in opened)
-        lines.append(f"✅ Açılan pozisyon: <b>{len(opened)}</b> ({opened_str})")
-    else:
-        lines.append("✅ Açılan pozisyon: <b>0</b>")
+    # Açılan pozisyonlar
+    lines.append(f"✅ <b>Açılan pozisyon: {len(opened)}</b>")
+    for sym, sd in opened:
+        lines.append(f"{sym} {sd.upper()}")
+    lines.append("")
 
-    if filter_rejections:
-        lines.append(f"⚠️ Crossover var ama filtreye takıldı: <b>{len(filter_rejections)}</b>")
-        for s, sd, r in filter_rejections[:10]:  # ilk 10 tanesi
-            lines.append(f"   • {s} {sd.upper()} – {r}")
-        if len(filter_rejections) > 10:
-            lines.append(f"   • ... ve {len(filter_rejections) - 10} tane daha")
-    else:
-        lines.append("⚠️ Crossover var ama filtreye takıldı: <b>0</b>")
+    # Crossover gruplandırması
+    counts = {}
+    for _sym, _sd, reason in filter_rejections:
+        cat = _categorize_rejection(reason)
+        counts[cat] = counts.get(cat, 0) + 1
 
-    if max_pos_skips:
-        lst = ", ".join(f"{s} {sd.upper()}" for s, sd in max_pos_skips)
-        lines.append(f"🚫 5 pozisyon dolu / atlandı: <b>{len(max_pos_skips)}</b> ({lst})")
-    else:
-        lines.append("🚫 5 pozisyon dolu / atlandı: <b>0</b>")
+    lines.append(f"⚠️ <b>Crossover: {len(filter_rejections)}</b>")
+    for cat in ("30dk EMA", "2H EMA", "ATR filtresi", "Diğer"):
+        if counts.get(cat, 0) > 0:
+            lines.append(f"{cat}: {counts[cat]}")
+    lines.append("")
 
-    if duplicate_skips:
-        lst = ", ".join(f"{s} {sd.upper()}" for s, sd in duplicate_skips)
-        lines.append(f"🔁 Aynı coinde pozisyon var / atlandı: <b>{len(duplicate_skips)}</b> ({lst})")
-    else:
-        lines.append("🔁 Aynı coinde pozisyon var / atlandı: <b>0</b>")
-
-    lines.append(f"📈 Şu an açık pozisyon: <b>{open_count}/{config.MAX_POSITIONS}</b>")
-    lines.append(f"💰 Stake: <b>{stake:.2f} USDT × {leverage}x</b>")
+    lines.append(f"🚫 5 pozisyon dolu: {len(max_pos_skips)}")
+    lines.append(f"📌 Zaten açık: {len(duplicate_skips)}")
+    lines.append("")
+    lines.append(f"📈 Açık pozisyon: {open_count}/{config.MAX_POSITIONS}")
+    lines.append(f"💰 Stake: {stake:.2f} USDT × {leverage}x")
 
     return "\n".join(lines)
