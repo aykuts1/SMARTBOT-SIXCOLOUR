@@ -28,7 +28,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-# APScheduler loglarını sustur
 logging.getLogger("apscheduler").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
@@ -65,7 +64,6 @@ def entry_scan_job():
 
     for symbol in STATE.symbols:
         try:
-            # Veri çek
             df_30m = STATE.client.fetch_klines(
                 symbol, config.KLINE_INTERVAL_30M, config.KLINE_LIMIT
             )
@@ -76,7 +74,6 @@ def entry_scan_job():
             logger.warning(f"{symbol}: kline hata - {e}")
             continue
 
-        # Strateji değerlendir
         try:
             result = strategy.evaluate_symbol(df_30m, df_2h, symbol)
         except Exception as e:
@@ -88,7 +85,6 @@ def entry_scan_job():
             filter_rejections.append(
                 (symbol, result.crossover_side, result.rejection_reason or "?")
             )
-            # Tek tek anlık bildirim de gönderelim
             STATE.notifier.send(tg_fmt.fmt_filter_reject(
                 symbol, result.crossover_side, result.rejection_reason or "?"
             ))
@@ -100,33 +96,28 @@ def entry_scan_job():
         # ===== SİNYAL VAR =====
         side = result.side
 
-        # Aynı coinde pozisyon var mı?
         if STATE.pm.has(symbol):
             duplicate_skips.append((symbol, side))
             STATE.notifier.send(tg_fmt.fmt_duplicate(symbol, side))
             continue
 
-        # 5 pozisyon dolu mu?
         if STATE.pm.count() >= config.MAX_POSITIONS:
             max_pos_skips.append((symbol, side))
             STATE.notifier.send(tg_fmt.fmt_max_positions(symbol, side))
             continue
 
-        # CE ve ATR hesapla
+        # ATR hesapla (CE ve BE için)
         try:
-            initial_ce = strategy.compute_initial_ce(df_30m, side)
             entry_atr = strategy.compute_entry_atr(df_30m)
         except Exception as e:
-            logger.error(f"{symbol}: CE/ATR hesap hata - {e}")
+            logger.error(f"{symbol}: ATR hesap hata - {e}")
             continue
 
-        # Pozisyon aç
+        # Pozisyon aç (CE entry'nin 1 ATR gerisinde otomatik hesaplanır)
         try:
             pos = STATE.pm.open_position(
                 symbol=symbol,
                 side=side,
-                df_30m=df_30m,
-                initial_ce=initial_ce,
                 entry_atr=entry_atr,
             )
         except Exception as e:
@@ -180,17 +171,8 @@ def exit_scan_job():
     if STATE.pm.count() == 0:
         return
 
-    def kline_fetcher(symbol):
-        try:
-            return STATE.client.fetch_klines(
-                symbol, config.KLINE_INTERVAL_30M, config.KLINE_LIMIT
-            )
-        except Exception as e:
-            logger.warning(f"{symbol}: exit scan kline hata - {e}")
-            return None
-
     try:
-        closed = STATE.pm.scan_exits(kline_fetcher)
+        closed = STATE.pm.scan_exits()
     except Exception as e:
         logger.error(f"Çıkış taraması hata - {e}")
         STATE.notifier.send(tg_fmt.fmt_error("exit scan", str(e)))
@@ -210,16 +192,13 @@ def exit_scan_job():
 # ============= BAŞLANGIÇ =============
 def initialize() -> None:
     """Bot'u başlat: validasyon, client, bakiye, kaldıraç, instrument cache."""
-    # 1) Config validate
     config.validate()
 
-    # 2) Client ve notifier
     STATE.client = BybitClient()
     STATE.notifier = TelegramNotifier(
         config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID
     )
 
-    # 3) Bakiye oku ve stake hesapla (BOT ÖMRÜ BOYUNCA SABİT)
     try:
         balance = STATE.client.fetch_usdt_balance()
     except Exception as e:
@@ -240,7 +219,6 @@ def initialize() -> None:
         f"Kaldıraç: {config.LEVERAGE}x, Sembol: {len(STATE.symbols)}"
     )
 
-    # 4) Tüm semboller için kaldıraç set et + instrument cache'le
     failed_symbols = []
     for sym in STATE.symbols:
         try:
@@ -256,14 +234,12 @@ def initialize() -> None:
             f"{len(failed_symbols)} sembol listeden çıkarıldı: {failed_symbols}"
         )
 
-    # 5) Position manager
     STATE.pm = PositionManager(
         client=STATE.client,
         notifier=STATE.notifier,
         stake_per_trade=STATE.stake,
     )
 
-    # 6) Başlangıç bildirimi
     STATE.notifier.send(tg_fmt.fmt_startup(
         balance=balance,
         stake=STATE.stake,
@@ -284,8 +260,6 @@ def main():
 
     scheduler = BlockingScheduler(timezone="UTC")
 
-    # 30 dakikalık mum kapanışı: her saatin 00 ve 30. dakikası
-    # Bybit mum kapanışı + 3sn gecikme job içinde uygulanıyor
     scheduler.add_job(
         entry_scan_job,
         trigger=CronTrigger(minute="0,30", second=2, timezone="UTC"),
@@ -295,7 +269,6 @@ def main():
         misfire_grace_time=120,
     )
 
-    # Çıkış taraması: her 60 saniyede
     scheduler.add_job(
         exit_scan_job,
         trigger=IntervalTrigger(seconds=config.EXIT_SCAN_INTERVAL_SEC),
@@ -303,11 +276,9 @@ def main():
         max_instances=1,
         coalesce=True,
         misfire_grace_time=30,
-        # İlk çalıştırma: hemen değil 30sn sonra (pozisyon yoksa zaten skip eder)
         next_run_time=datetime.now(timezone.utc),
     )
 
-    # Graceful shutdown
     def shutdown_handler(signum, _frame):
         logger.info(f"Sinyal {signum} alındı, scheduler durduruluyor...")
         try:
