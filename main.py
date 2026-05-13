@@ -62,6 +62,7 @@ def entry_scan_job():
     time.sleep(3)
 
     for symbol in STATE.symbols:
+        time.sleep(config.SCAN_SLEEP_BETWEEN_SYMBOLS)
         try:
             df_30m = STATE.client.fetch_klines(
                 symbol, config.KLINE_INTERVAL_30M, config.KLINE_LIMIT
