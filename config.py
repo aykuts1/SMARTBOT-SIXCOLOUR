@@ -57,10 +57,17 @@ MARGIN_MODE = "ISOLATED"   # Always isolated
 
 # Stop Loss / Exit
 INITIAL_SL_PERCENT = 0.01      # 1% safety net at entry (price-based, not PnL)
-STAGE1_TRIGGER_ATR = 1.0       # Stage 1 activates at +1 ATR profit
-STAGE1_CE_TRAIL_ATR = 1.0      # CE trails 1 ATR behind price
-STAGE2_TRIGGER_PCT = 0.012     # Stage 2 activates at +1.2% profit (price move)
-STAGE2_SL_PCT = 0.01           # SL moves to +1% profit on Stage 2
+
+# Stage 1: +1.2% peak profit → SL moves to +1% profit
+STAGE1_TRIGGER_PCT = 0.012
+STAGE1_SL_PCT = 0.01
+
+# Stage 2: +2 ATR peak profit → SL moves to +0.2 ATR profit, CE 2 ATR starts
+STAGE2_TRIGGER_ATR = 2.0
+STAGE2_SL_ATR = 0.2
+
+# Stage 3: +6 ATR peak profit → CE narrows to 1 ATR
+STAGE3_TRIGGER_ATR = 6.0
 
 # Scanning intervals
 ENTRY_SCAN_INTERVAL = 300      # 5 minutes (aligned with candle close)
