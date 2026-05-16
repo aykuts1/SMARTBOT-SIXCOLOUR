@@ -43,7 +43,7 @@ def send_bot_start(balance: float, stake: float, leverage: int, symbols: List[st
         f"⚡ Kaldıraç: <b>{leverage}x ISOLATED</b>\n"
         f"📊 Coin Sayısı: <b>{len(symbols)}</b>\n"
         f"⏱ Giriş Tarama: 5 dk / Çıkış Tarama: 60 sn\n\n"
-        f"Strateji: EMA7 + EMA100(H/L) + Kanal Genişliği Filtresi"
+        f"Strateji: EMA7 + EMA100(H/L) Kesişim + Kanal Genişliği Filtresi"
     )
     _send(msg)
 
@@ -75,24 +75,40 @@ def send_entry(symbol: str, side: str, price: float, qty: float, stake: float,
     _send(msg)
 
 
-def send_stage1(symbol: str, side: str, price: float, ce_level: float, atr_value: float) -> None:
+def send_stage1(symbol: str, side: str, price: float, new_sl: float, profit_pct: float) -> None:
+    """Stage 1: +%1.2 peak → SL moves to +%1 profit."""
     msg = (
-        f"⚙️ <b>AŞAMA 1 — CE AKTİF</b>\n"
+        f"🔒 <b>AŞAMA 1 — SL KÂRA TAŞINDI</b>\n"
         f"<code>{symbol}</code> ({'LONG' if side == 'Buy' else 'SHORT'})\n"
-        f"Fiyat: {price} (+1 ATR kâr)\n"
-        f"CE Seviyesi: <b>{ce_level}</b> (1 ATR geriden takip)\n"
+        f"Fiyat: {price} (peak +{profit_pct*100:.2f}%)\n"
+        f"Yeni SL: <b>{new_sl}</b> (+%1 kârda)"
+    )
+    _send(msg)
+
+
+def send_stage2(symbol: str, side: str, price: float, new_sl: float, ce_level: float,
+                atr_value: float) -> None:
+    """Stage 2: +2 ATR peak → SL to +0.2 ATR, CE 2 ATR active."""
+    msg = (
+        f"⚙️ <b>AŞAMA 2 — CE AKTİF (2 ATR)</b>\n"
+        f"<code>{symbol}</code> ({'LONG' if side == 'Buy' else 'SHORT'})\n"
+        f"Fiyat: {price} (peak +2 ATR)\n"
+        f"Yeni SL: <b>{new_sl}</b> (+0.2 ATR kârda)\n"
+        f"CE: <b>{ce_level}</b> (2 ATR geriden)\n"
         f"ATR: {atr_value:.6f}"
     )
     _send(msg)
 
 
-def send_stage2(symbol: str, side: str, price: float, new_sl: float, profit_pct: float) -> None:
+def send_stage3(symbol: str, side: str, price: float, ce_level: float, atr_value: float) -> None:
+    """Stage 3: +6 ATR peak → CE narrows to 1 ATR."""
     msg = (
-        f"🔒 <b>AŞAMA 2 — KÂR KİLİTLENDİ</b>\n"
+        f"🎯 <b>AŞAMA 3 — CE DARALDI (1 ATR)</b>\n"
         f"<code>{symbol}</code> ({'LONG' if side == 'Buy' else 'SHORT'})\n"
-        f"Fiyat: {price} (+{profit_pct*100:.2f}%)\n"
-        f"Yeni SL: <b>{new_sl}</b> (+%1 kârda)\n"
-        f"CE takibe devam ediyor (1 ATR)"
+        f"Fiyat: {price} (peak +6 ATR)\n"
+        f"CE: <b>{ce_level}</b> (1 ATR geriden)\n"
+        f"ATR: {atr_value:.6f}\n"
+        f"SL değişmedi (+0.2 ATR kârda)"
     )
     _send(msg)
 
@@ -106,6 +122,26 @@ def send_exit(symbol: str, side: str, entry_price: float, exit_price: float,
         f"Giriş: {entry_price} → Çıkış: {exit_price}\n"
         f"PnL: <b>{pnl_usdt:+.2f} USDT</b> ({pnl_pct:+.2f}%)\n"
         f"Sebep: <i>{reason}</i>"
+    )
+    _send(msg)
+
+
+def send_insufficient_balance(symbol: str, side: str) -> None:
+    """Signal generated but couldn't open due to insufficient balance."""
+    direction = "LONG" if side == "Buy" else "SHORT"
+    msg = (
+        f"⚠️ <b>Sinyal: {symbol} {direction}</b>\n"
+        f"Yetersiz bakiye, işlem açılamadı."
+    )
+    _send(msg)
+
+
+def send_leverage_rejected(symbol: str, side: str, leverage: int) -> None:
+    """Signal generated but coin doesn't allow requested leverage."""
+    direction = "LONG" if side == "Buy" else "SHORT"
+    msg = (
+        f"⚠️ <b>Sinyal: {symbol} {direction}</b>\n"
+        f"Bu coinde {leverage}x kaldıraca izin verilmiyor, işlem atlandı."
     )
     _send(msg)
 
