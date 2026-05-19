@@ -253,70 +253,50 @@ class AtrTunnelBot:
         self.state.clear_flag(symbol)
 
     def _execute_entry(self, symbol: str, side: str, bands: dict) -> bool:
-        """40 deneme limit post-only entry.
-
-        Başarılıysa pozisyon eklenir, SL set edilir, Telegram bildirimi gider.
-        """
+        """Market emir ile anlık giriş."""
         order_side = "Buy" if side == "long" else "Sell"
-        tick = self.bybit.get_tick_size(symbol)
 
-        attempt = 0
-        order_id: Optional[str] = None
-        while attempt < config.ENTRY_RETRY_LIMIT:
-            attempt += 1
+        # Güncel fiyat al
+        cur_price = self.bybit.get_last_price(symbol)
+        if cur_price is None:
+            logger.warning(f"{symbol} fiyat alınamadı, giriş atlandı")
+            self.state.add_failed_signal(symbol, side, "api_error")
+            tg_module.notify_signal_failed(self.tg, symbol, side, "api_error")
+            return False
 
-            # Güncel fiyat al
-            cur_price = self.bybit.get_last_price(symbol)
-            if cur_price is None:
-                time.sleep(config.ORDER_RETRY_INTERVAL_SEC)
-                continue
+        # Quantity hesabı
+        position_size = self.state.locked_stake * config.LEVERAGE
+        raw_qty = position_size / cur_price
+        qty = self.bybit.round_qty(symbol, raw_qty)
+        min_qty = self.bybit.get_min_qty(symbol)
+        if qty < min_qty:
+            logger.warning(f"{symbol} qty {qty} < min {min_qty}")
+            self.state.add_failed_signal(symbol, side, "insufficient_qty")
+            tg_module.notify_signal_failed(self.tg, symbol, side, "insufficient_qty")
+            return False
 
-            # Maker fiyatı: Buy için -1 tick, Sell için +1 tick
-            if side == "long":
-                limit_price = cur_price - tick
-            else:
-                limit_price = cur_price + tick
+        # Market emir gönder
+        order_id = self.bybit.place_market_order(symbol, order_side, qty, reduce_only=False)
+        if not order_id:
+            logger.warning(f"{symbol} market emir gönderilemedi")
+            self.state.add_failed_signal(symbol, side, "api_error")
+            tg_module.notify_signal_failed(self.tg, symbol, side, "api_error")
+            return False
 
-            # Quantity hesabı
-            position_size = self.state.locked_stake * config.LEVERAGE
-            raw_qty = position_size / limit_price
-            qty = self.bybit.round_qty(symbol, raw_qty)
-            min_qty = self.bybit.get_min_qty(symbol)
-            if qty < min_qty:
-                logger.warning(f"{symbol} qty {qty} < min {min_qty}")
-                self.state.add_failed_signal(symbol, side, "insufficient_qty")
-                tg_module.notify_signal_failed(self.tg, symbol, side, "insufficient_qty")
-                return False
+        # 2 saniye bekle, dolduğunu varsay
+        time.sleep(2)
 
-            # Emir gönder
-            order_id = self.bybit.place_limit_postonly(
-                symbol, order_side, qty, limit_price, reduce_only=False
-            )
-            if not order_id:
-                time.sleep(config.ORDER_RETRY_INTERVAL_SEC)
-                continue
+        # Borsadan gerçek giriş fiyatını al
+        live_pos = self.bybit.get_position(symbol)
+        if live_pos:
+            avg_price = float(live_pos.get("avgPrice") or cur_price)
+            filled_qty = float(live_pos.get("size") or qty)
+        else:
+            avg_price = cur_price
+            filled_qty = qty
 
-            # 3 saniye bekle
-            time.sleep(config.ORDER_RETRY_INTERVAL_SEC)
-
-            # Doldu mu?
-            filled, info = self.bybit.is_order_filled(symbol, order_id)
-            if filled and info:
-                # Pozisyon kayıt
-                avg_price = float(info.get("avgPrice") or limit_price)
-                filled_qty = float(info.get("cumExecQty") or qty)
-                self._register_position(symbol, side, avg_price, filled_qty, bands)
-                return True
-
-            # Doldu değilse iptal et
-            self.bybit.cancel_order(symbol, order_id)
-            order_id = None
-
-        # 40 deneme bitti
-        logger.info(f"{symbol} entry {config.ENTRY_RETRY_LIMIT} denemede dolmadı")
-        self.state.add_failed_signal(symbol, side, "retry_exhausted")
-        tg_module.notify_signal_failed(self.tg, symbol, side, "retry_exhausted")
-        return False
+        self._register_position(symbol, side, avg_price, filled_qty, bands)
+        return True
 
     def _register_position(self, symbol: str, side: str,
                           entry_price: float, qty: float,
@@ -404,54 +384,26 @@ class AtrTunnelBot:
         logger.info(f"{pos.symbol} SL tetiklenmiş, pozisyon kapatıldı")
 
     def _execute_exit(self, pos: Position, exit_reason: str, bands: dict) -> None:
-        """40 limit + 20 limit + 1 market deneme çıkış."""
+        """Market emir ile anlık çıkış."""
         close_side = "Sell" if pos.side == "long" else "Buy"
-        tick = self.bybit.get_tick_size(pos.symbol)
 
-        total_limit_attempts = config.EXIT_RETRY_LIMIT + config.EXIT_EXTRA_RETRY
-        attempt = 0
-
-        while attempt < total_limit_attempts:
-            attempt += 1
-
-            cur_price = self.bybit.get_last_price(pos.symbol)
-            if cur_price is None:
-                time.sleep(config.ORDER_RETRY_INTERVAL_SEC)
-                continue
-
-            # Maker fiyatı: Sell (long kapatma) için +1 tick, Buy (short kapatma) için -1 tick
-            if pos.side == "long":
-                limit_price = cur_price + tick
-            else:
-                limit_price = cur_price - tick
-
-            order_id = self.bybit.place_limit_postonly(
-                pos.symbol, close_side, pos.quantity, limit_price, reduce_only=True
-            )
-            if not order_id:
-                time.sleep(config.ORDER_RETRY_INTERVAL_SEC)
-                continue
-
-            time.sleep(config.ORDER_RETRY_INTERVAL_SEC)
-            filled, info = self.bybit.is_order_filled(pos.symbol, order_id)
-            if filled and info:
-                avg_exit = float(info.get("avgPrice") or limit_price)
-                self._finalize_exit(pos, avg_exit, exit_reason)
-                return
-
-            self.bybit.cancel_order(pos.symbol, order_id)
-
-        # Limit denemeleri bitti, market emirle kapat
-        logger.warning(f"{pos.symbol} limit çıkış başarısız, market emir...")
-        market_id = self.bybit.place_market_order(
+        order_id = self.bybit.place_market_order(
             pos.symbol, close_side, pos.quantity, reduce_only=True
         )
-        if market_id:
-            tg_module.notify_market_close(self.tg, pos.symbol, pos.side)
-            # Son fiyatı al ve çıkış olarak kabul et
+        if not order_id:
+            logger.warning(f"{pos.symbol} çıkış market emri gönderilemedi, tekrar deneniyor...")
             time.sleep(2)
-            cur = self.bybit.get_last_price(pos.symbol) or pos.entry_price
-            self._finalize_exit(pos, cur, exit_reason)
+            order_id = self.bybit.place_market_order(
+                pos.symbol, close_side, pos.quantity, reduce_only=True
+            )
+            if not order_id:
+                logger.error(f"{pos.symbol} çıkış başarısız!")
+                return
+
+        # 2 saniye bekle
+        time.sleep(2)
+        cur = self.bybit.get_last_price(pos.symbol) or pos.entry_price
+        self._finalize_exit(pos, cur, exit_reason)
 
     def _finalize_exit(self, pos: Position, exit_price: float,
                       exit_reason: str) -> None:
