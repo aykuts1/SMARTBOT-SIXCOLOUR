@@ -145,12 +145,12 @@ class BybitClient:
         return float(rounded)
 
     def format_price(self, symbol: str, price: float) -> str:
-        """Fiyatı string'e çevir (tick size precision'ında)."""
+        """Fiyatı Decimal ile string'e çevir — float precision hatası olmadan."""
         tick = self.get_tick_size(symbol)
-        s = f"{tick:.20f}".rstrip("0").rstrip(".")
-        decimals = len(s.split(".")[1]) if "." in s else 0
-        rounded = self.round_price(symbol, price)
-        return f"{rounded:.{decimals}f}"
+        d_price = Decimal(str(price))
+        d_tick = Decimal(str(tick))
+        rounded = (d_price // d_tick) * d_tick
+        return format(rounded, 'f')
 
     def round_qty(self, symbol: str, qty: float) -> float:
         """Quantity'yi qty step'e göre yuvarla (aşağı)."""
@@ -161,11 +161,12 @@ class BybitClient:
         return float(rounded)
 
     def format_qty(self, symbol: str, qty: float) -> str:
+        """Quantity'yi Decimal ile string'e çevir — float precision hatası olmadan."""
         step = self.get_qty_step(symbol)
-        s = f"{step:.20f}".rstrip("0").rstrip(".")
-        decimals = len(s.split(".")[1]) if "." in s else 0
-        rounded = self.round_qty(symbol, qty)
-        return f"{rounded:.{decimals}f}"
+        d_qty = Decimal(str(qty))
+        d_step = Decimal(str(step))
+        rounded = (d_qty // d_step) * d_step
+        return format(rounded, 'f')
 
     # ============================================================
     # KALDIRAÇ / MARJİN
@@ -200,7 +201,8 @@ class BybitClient:
             return True
         except Exception as e:
             msg = str(e).lower()
-            if "not modified" in msg or "110026" in msg:
+            # 110026: zaten isolated; 100028: Unified hesapta desteklenmiyor (normal)
+            if "not modified" in msg or "110026" in msg or "100028" in str(e):
                 return True
             logger.warning(f"{symbol} isolated mode hatası: {e}")
             return False
