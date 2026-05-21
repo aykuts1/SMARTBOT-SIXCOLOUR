@@ -1,0 +1,74 @@
+{
+  "_aciklama": "Tum ayarlar bu dosyadan yapilir. Degisiklikler bot yeniden baslatilinca aktif olur.",
+
+  "genel": {
+    "STAKE_PERCENT":   20,
+    "MAX_OPEN_TRADES": 10,
+    "LEVERAGE":        50,
+    "SL_PERCENT":      1,
+    "_aciklama": "STAKE_PERCENT: bakiyenin yuzde kaci stake | MAX_OPEN_TRADES: ayni anda max acik islem | LEVERAGE: kaldirac | SL_PERCENT: borsa stop-loss yuzdesi"
+  },
+
+  "bant": {
+    "EMA_PERIOD":       100,
+    "ATR_PERIOD":       14,
+    "BAND_MULTIPLIER":  2,
+    "BUFFER_MULTIPLIER": 0.2,
+    "_aciklama": "EMA_PERIOD: orta cizgi | ATR_PERIOD: ATR periyodu | BAND_MULTIPLIER: disbant = EMA +/- BAND*ATR | BUFFER_MULTIPLIER: ic/dis tampon = disbant +/- BUFFER*ATR"
+  },
+
+  "tarama": {
+    "TIMEFRAME":       "15",
+    "SCAN_SECONDS":    5,
+    "HISTORY_SECONDS": 1800,
+    "_aciklama": "TIMEFRAME: mum suresi dakika (15 30 60 120 240 720 1440) | SCAN_SECONDS: tarama sikligi | HISTORY_SECONDS: fiyat gecmisi suresi"
+  },
+
+  "cikis": {
+    "CE1_ATR":      0.5,
+    "CE1_TRAIL":    0.5,
+    "CE2_ATR":      2.0,
+    "CE2_TRAIL":    1.0,
+    "WINRATE_ATR":  5.0,
+    "WINRATE_TRAIL": 0.5,
+    "_aciklama": "CE1_ATR: CE1 seviyesi icin ATR kar esigi | CE1_TRAIL: CE1 takip mesafesi ATR | CE2_ATR: CE2 esigi | CE2_TRAIL: CE2 takip mesafesi | WINRATE_ATR: winrate esigi | WINRATE_TRAIL: winrate takip mesafesi"
+  },
+
+  "emir": {
+    "ENTRY_ATTEMPTS": 50,
+    "EXIT_ATTEMPTS":  50,
+    "ATTEMPT_WAIT_SEC": 3,
+    "_aciklama": "ENTRY_ATTEMPTS: giris icin max limit emir denemesi | EXIT_ATTEMPTS: cikis icin max deneme (dolmazsa market emirle kapanir) | ATTEMPT_WAIT_SEC: her deneme arasi bekleme saniyesi"
+  },
+
+  "rapor": {
+    "REPORT_15MIN":  true,
+    "REPORT_HOURLY": true,
+    "REPORT_8H_HOURS": [0, 8, 16],
+    "REPORT_DAILY_HOUR": 0,
+    "_aciklama": "15 dakikalik ve saatlik raporlari ac/kapa | REPORT_8H_HOURS: 8 saatlik vardiya raporlarinin saatleri | REPORT_DAILY_HOUR: gunluk raporun saati"
+  },
+
+  "coinler": [
+    "OPUSDT",
+    "NEARUSDT",
+    "ALGOUSDT",
+    "ARBUSDT",
+    "APTUSDT",
+    "DOTUSDT",
+    "TIAUSDT",
+    "XRPUSDT",
+    "JTOUSDT",
+    "ENAUSDT",
+    "AVAXUSDT",
+    "ADAUSDT",
+    "LINKUSDT",
+    "ATOMUSDT",
+    "SUIUSDT",
+    "INJUSDT",
+    "TONUSDT",
+    "TRXUSDT",
+    "DOGEUSDT",
+    "1000PEPEUSDT"
+  ]
+}
