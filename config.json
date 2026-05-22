@@ -1,5 +1,5 @@
 {
-  "_aciklama": "Tum ayarlar bu dosyadan yapilir. Degisiklikler bot yeniden baslatilinca aktif olur.",
+  "_aciklama": "Tum ayarlar bu dosyadan yapilir. Degisiklikler bot yeniden baslatilinca aktif olur.", 
 
   "genel": {
     "STAKE_PERCENT":   10,
