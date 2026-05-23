@@ -27,14 +27,12 @@ from typing import Optional
 LEVEL_ENTRY   = 0
 LEVEL_BE      = 1
 LEVEL_CE1     = 2
-LEVEL_CE2     = 3
-LEVEL_WINRATE = 4
+LEVEL_WINRATE = 3
 
 LEVEL_LABELS = {
     LEVEL_ENTRY:   "Giris",
     LEVEL_BE:      "BE",
     LEVEL_CE1:     "CE1",
-    LEVEL_CE2:     "CE2",
     LEVEL_WINRATE: "Winrate",
 }
 
@@ -122,8 +120,8 @@ def update_level_and_ce(
     ust_disbant:    float,
     alt_disbant:    float,
     ce1_atr: float, ce1_trail: float,
-    ce2_atr: float, ce2_trail: float,
-    winrate_atr: float, winrate_trail: float,
+    ce2_atr: float = 0.0, ce2_trail: float = 0.0,   # KULLANILMIYOR - geriye uyumluluk icin
+    winrate_atr: float = 5.0, winrate_trail: float = 0.5,
 ) -> Optional[int]:
     """
     Her tarama dongusunde cagrilir. Su islemleri yapar:
@@ -131,10 +129,11 @@ def update_level_and_ce(
     1. best_price'i gunceller
     2. BE seviyesini kontrol eder (fiyat dis tamponu gecti mi?)
     3. BE cikis cizgisini DINAMIK olarak anlik disbant'a esitler
-    4. CE1, CE2, WINRATE seviyelerini kontrol eder, CE'yi gunceller
+    4. CE1, WINRATE seviyelerini kontrol eder, CE'yi gunceller
     5. Yeni bir seviyeye geciliyorsa o seviyenin numarasini doner, yoksa None
 
-    CE geri cekilmez - sadece kar yonune dogru ilerler.
+    Yeni mantik: Her seviyeye gecildiginde eski CE chandelier'i sifirlanir.
+    CE2 seviyesi KALDIRILDI - CE1'den dogrudan WINRATE'e gecilir.
     """
     pos.update_best(price)
     new_level = pos.level
@@ -147,7 +146,6 @@ def update_level_and_ce(
             new_level = LEVEL_BE
 
     # --- BE cikis cizgisi (DINAMIK: anlik disbant) ---
-    # BE seviyesindeysek be_exit_price'i her zaman anlik disbantla guncelle.
     if new_level >= LEVEL_BE or pos.level >= LEVEL_BE:
         pos.be_exit_price = ust_disbant if pos.side == "LONG" else alt_disbant
 
@@ -156,24 +154,19 @@ def update_level_and_ce(
 
     if profit_atr >= winrate_atr and pos.level < LEVEL_WINRATE:
         new_level = LEVEL_WINRATE
-    elif profit_atr >= ce2_atr and pos.level < LEVEL_CE2:
-        new_level = LEVEL_CE2
     elif profit_atr >= ce1_atr and pos.level < LEVEL_CE1:
         new_level = LEVEL_CE1
 
     # --- Aktif CE takip carpani ---
     if new_level >= LEVEL_WINRATE:
         trail = winrate_trail
-    elif new_level >= LEVEL_CE2:
-        trail = ce2_trail
     elif new_level >= LEVEL_CE1:
         trail = ce1_trail
     else:
         trail = None
 
     # --- Yeni bir CE seviyesine gecildiyse eski CE'yi sifirla ---
-    # Boylece CE2'ye gecince eski CE1 chandelier'i kullanilmaz,
-    # WINRATE'e gecince eski CE2 chandelier'i kullanilmaz.
+    # WINRATE'e gecince eski CE1 chandelier'i kullanilmaz.
     if new_level != pos.level and new_level >= LEVEL_CE1:
         pos.ce_price = None
 
@@ -201,31 +194,36 @@ def check_exit(
     alt_ic_tampon: float,
 ) -> Optional[str]:
     """
-    Cikis tetikleyicilerini sirayla kontrol eder.
+    Cikis tetikleyicilerini kontrol eder.
 
-    Oncelik sirasi (yuksekten dusuge):
-      1. CE Exit  (varsa CE seviyesi - kari kilitlemek icin)
-      2. BE Exit  (BE seviyesindeyse, dinamik BE cizgisi gecildi mi)
-      3. LOSE Exit (ic tamponun ic tarafina dustu)
+    YENI MANTIK: Her seviyede SADECE o seviyenin cikisi aktiftir.
+    Ust seviyeye gecildiginde alt seviyenin cikisi DEVRE DISI kalir.
+      - ENTRY  seviyesi -> LOSE EXIT (ic tampon)
+      - BE     seviyesi -> BE EXIT (dinamik disbant)
+      - CE1    seviyesi -> CE1 EXIT (chandelier)
+      - WINRATE seviyesi -> WINRATE EXIT (chandelier)
 
-    Stoploss Exit borsa tarafindan tetiklenir, disardan tespit edilir.
+    Borsa %1 SL emri her zaman aktiftir, disardan tetiklenir.
     """
+    # CE seviyelerinde sadece CE Exit aktif
+    if pos.level >= LEVEL_CE1:
+        if pos.ce_price is not None:
+            if pos.side == "LONG" and price <= pos.ce_price:
+                return _ce_exit_name(pos.level)
+            if pos.side == "SHORT" and price >= pos.ce_price:
+                return _ce_exit_name(pos.level)
+        return None
 
-    # 1. CE Exit (varsa)
-    if pos.ce_price is not None and pos.level >= LEVEL_CE1:
-        if pos.side == "LONG" and price <= pos.ce_price:
-            return _ce_exit_name(pos.level)
-        if pos.side == "SHORT" and price >= pos.ce_price:
-            return _ce_exit_name(pos.level)
+    # BE seviyesinde sadece BE Exit aktif
+    if pos.level == LEVEL_BE:
+        if pos.be_exit_price is not None:
+            if pos.side == "LONG" and price <= pos.be_exit_price:
+                return "BE Exit"
+            if pos.side == "SHORT" and price >= pos.be_exit_price:
+                return "BE Exit"
+        return None
 
-    # 2. BE Exit (BE seviyesindeysek)
-    if pos.level >= LEVEL_BE and pos.be_exit_price is not None:
-        if pos.side == "LONG" and price <= pos.be_exit_price:
-            return "BE Exit"
-        if pos.side == "SHORT" and price >= pos.be_exit_price:
-            return "BE Exit"
-
-    # 3. LOSE Exit (her zaman aktif)
+    # ENTRY seviyesinde sadece LOSE Exit aktif
     if pos.side == "LONG" and price < ust_ic_tampon:
         return "Lose Exit"
     if pos.side == "SHORT" and price > alt_ic_tampon:
@@ -237,8 +235,6 @@ def check_exit(
 def _ce_exit_name(level: int) -> str:
     if level == LEVEL_WINRATE:
         return "Winrate Exit"
-    if level == LEVEL_CE2:
-        return "CE2 Exit"
     if level == LEVEL_CE1:
         return "CE1 Exit"
     return "Lose Exit"
@@ -246,7 +242,7 @@ def _ce_exit_name(level: int) -> str:
 
 def next_level_target(
     pos: Position,
-    ce1_atr: float, ce2_atr: float, winrate_atr: float,
+    ce1_atr: float, ce2_atr: float, winrate_atr: float,   # ce2_atr KULLANILMIYOR
 ) -> Optional[tuple]:
     """
     Bir sonraki seviyenin (label, hedef_fiyat). Telegram raporlarinda gosterilir.
@@ -255,12 +251,9 @@ def next_level_target(
     atr = pos.atr_at_entry
     if pos.level >= LEVEL_WINRATE:
         return None
-    elif pos.level >= LEVEL_CE2:
+    elif pos.level >= LEVEL_CE1:
         label = "Winrate"
         target_atr = winrate_atr
-    elif pos.level >= LEVEL_CE1:
-        label = "CE2"
-        target_atr = ce2_atr
     else:
         # ENTRY veya BE seviyesinde -> sonraki CE1
         label = "CE1"
