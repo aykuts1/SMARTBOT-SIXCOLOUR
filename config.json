@@ -1,10 +1,10 @@
 {
-  "_aciklama": "Tum ayarlar bu dosyadan yapilir. Degisiklikler bot yeniden baslatilinca aktif olur.", 
+  "_aciklama": "Tum ayarlar bu dosyadan yapilir. Degisiklikler bot yeniden baslatilinca aktif olur.",
 
   "genel": {
-    "STAKE_PERCENT":   10,
+    "STAKE_PERCENT":   20,
     "MAX_OPEN_TRADES": 10,
-    "LEVERAGE":        20,
+    "LEVERAGE":        50,
     "SL_PERCENT":      1,
     "_aciklama": "STAKE_PERCENT: bakiyenin yuzde kaci stake | MAX_OPEN_TRADES: ayni anda max acik islem | LEVERAGE: kaldirac | SL_PERCENT: borsa stop-loss yuzdesi"
   },
@@ -12,8 +12,8 @@
   "bant": {
     "EMA_PERIOD":       100,
     "ATR_PERIOD":       14,
-    "BAND_MULTIPLIER":  3,
-    "BUFFER_MULTIPLIER": 0.3,
+    "BAND_MULTIPLIER":  2,
+    "BUFFER_MULTIPLIER": 0.2,
     "_aciklama": "EMA_PERIOD: orta cizgi | ATR_PERIOD: ATR periyodu | BAND_MULTIPLIER: disbant = EMA +/- BAND*ATR | BUFFER_MULTIPLIER: ic/dis tampon = disbant +/- BUFFER*ATR"
   },
 
@@ -25,13 +25,11 @@
   },
 
   "cikis": {
-    "CE1_ATR":      0.6,
-    "CE1_TRAIL":    0.3,
-    "CE2_ATR":      1.0,
-    "CE2_TRAIL":    0.7,
+    "CE1_ATR":      1.0,
+    "CE1_TRAIL":    1.0,
     "WINRATE_ATR":  5.0,
     "WINRATE_TRAIL": 0.5,
-    "_aciklama": "CE1_ATR: CE1 seviyesi icin ATR kar esigi | CE1_TRAIL: CE1 takip mesafesi ATR | CE2_ATR: CE2 esigi | CE2_TRAIL: CE2 takip mesafesi | WINRATE_ATR: winrate esigi | WINRATE_TRAIL: winrate takip mesafesi"
+    "_aciklama": "CE1_ATR: CE1 seviyesi icin ATR kar esigi | CE1_TRAIL: CE1 takip mesafesi ATR | WINRATE_ATR: winrate esigi | WINRATE_TRAIL: winrate takip mesafesi"
   },
 
   "emir": {
@@ -59,6 +57,16 @@
     "TIAUSDT",
     "XRPUSDT",
     "JTOUSDT",
-    "ENAUSDT"
+    "ENAUSDT",
+    "AVAXUSDT",
+    "ADAUSDT",
+    "LINKUSDT",
+    "ATOMUSDT",
+    "SUIUSDT",
+    "INJUSDT",
+    "TONUSDT",
+    "TRXUSDT",
+    "DOGEUSDT",
+    "1000PEPEUSDT"
   ]
 }
