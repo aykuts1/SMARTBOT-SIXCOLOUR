@@ -76,7 +76,7 @@ class BybitClient:
     # ──────────────────────────────────────────
 
     def get_balance(self) -> float:
-        """USDT bakiye."""
+        """Toplam USDT bakiye (cuzdan). Bot baslangicinda stake hesabi icin."""
         resp = self.client.get_wallet_balance(accountType="UNIFIED", coin="USDT")
         if resp.get("retCode") != 0:
             raise RuntimeError(f"Balance fetch failed: {resp.get('retMsg')}")
@@ -84,6 +84,19 @@ class BybitClient:
         for c in coins:
             if c["coin"] == "USDT":
                 return float(c["walletBalance"])
+        return 0.0
+
+    def get_available_balance(self) -> float:
+        """Kullanilabilir USDT bakiye (acik pozisyon marjini dusuldukten sonra).
+        Islem acilisinda yeterli marjin var mi kontrolu icin."""
+        resp = self.client.get_wallet_balance(accountType="UNIFIED", coin="USDT")
+        if resp.get("retCode") != 0:
+            raise RuntimeError(f"Balance fetch failed: {resp.get('retMsg')}")
+        coins = resp["result"]["list"][0]["coin"]
+        for c in coins:
+            if c["coin"] == "USDT":
+                avail = c.get("availableToWithdraw") or c.get("walletBalance")
+                return float(avail or 0)
         return 0.0
 
     def set_leverage(self, symbol: str, leverage: int):
@@ -193,10 +206,17 @@ class BybitClient:
 
 
 def round_qty(qty: float, step: float) -> float:
-    """Quantity'yi step'e gore yuvarla."""
+    """Quantity'yi step'e gore yuvarla — float hassasiyet sorunu olmadan."""
     if step == 0:
         return qty
-    return float(int(qty / step) * step)
+    # Decimal basamak sayisini step'ten belirle
+    step_str = f"{step:.10f}".rstrip("0")
+    if "." in step_str:
+        decimals = len(step_str.split(".")[1])
+    else:
+        decimals = 0
+    result = float(int(qty / step) * step)
+    return round(result, decimals)
 
 
 def round_price(price: float, tick: float) -> float:
