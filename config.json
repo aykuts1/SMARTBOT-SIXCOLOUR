@@ -3,7 +3,7 @@
     "_aciklama": "Bant cizgilerinin hesaplanma ayarlari",
     "ema_period": 100,
     "atr_period": 100,
-    "timeframe": "15m",
+    "timeframe": "5m",
     "red_outer_multiplier": 2.0,
     "blue_outer_multiplier": 1.9,
     "outer_buffer_multiplier": 0.5,
@@ -39,7 +39,7 @@
     "_aciklama": "Emir ve kaldirac ayarlari",
     "type": "market",
     "sl_percent": 1.0,
-    "leverage": 30
+    "leverage": 20
   },
 
   "account": {
