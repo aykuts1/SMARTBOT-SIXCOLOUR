@@ -90,21 +90,58 @@ def check_mavi_short_flag_close(price: float, recent: List[float], bands: dict) 
 # GIRIS KOSULLARI
 # ──────────────────────────────────────────
 
-def check_kirmizi_long_entry(price: float, bands: dict) -> bool:
-    """Fiyat Kirmizi Ust Dis Cizgi ustunde."""
-    return price > bands["kirmizi_ust_disticizgi"]
+def check_kirmizi_long_entry(price: float, recent: list, bands: dict) -> bool:
+    """
+    Fiyat Kirmizi Ust Dis Cizgi ustunde VE
+    son 3 taramadan en az biri cizginin altinda olmali (crossover).
+    """
+    line = bands["kirmizi_ust_disticizgi"]
+    if price <= line:
+        return False
+    # Son 3 fiyattan en az biri altinda olmali
+    last3 = recent[-3:] if len(recent) >= 3 else recent
+    if not last3:
+        return False
+    return any(p < line for p in last3)
 
 
-def check_kirmizi_short_entry(price: float, bands: dict) -> bool:
-    """Fiyat Kirmizi Alt Dis Cizgi altinda."""
-    return price < bands["kirmizi_alt_disticizgi"]
+def check_kirmizi_short_entry(price: float, recent: list, bands: dict) -> bool:
+    """
+    Fiyat Kirmizi Alt Dis Cizgi altinda VE
+    son 3 taramadan en az biri cizginin ustunde olmali (crossover).
+    """
+    line = bands["kirmizi_alt_disticizgi"]
+    if price >= line:
+        return False
+    last3 = recent[-3:] if len(recent) >= 3 else recent
+    if not last3:
+        return False
+    return any(p > line for p in last3)
 
 
-def check_mavi_long_entry(price: float, bands: dict) -> bool:
-    """Fiyat Mavi Alt Dis Cizgi ustunde."""
-    return price > bands["mavi_alt_disticizgi"]
+def check_mavi_long_entry(price: float, recent: list, bands: dict) -> bool:
+    """
+    Fiyat Mavi Alt Dis Cizgi ustunde VE
+    son 3 taramadan en az biri cizginin altinda olmali (crossover).
+    """
+    line = bands["mavi_alt_disticizgi"]
+    if price <= line:
+        return False
+    last3 = recent[-3:] if len(recent) >= 3 else recent
+    if not last3:
+        return False
+    return any(p < line for p in last3)
 
 
-def check_mavi_short_entry(price: float, bands: dict) -> bool:
-    """Fiyat Mavi Ust Dis Cizgi altinda."""
-    return price < bands["mavi_ust_disticizgi"]
+def check_mavi_short_entry(price: float, recent: list, bands: dict) -> bool:
+    """
+    Fiyat Mavi Ust Dis Cizgi altinda VE
+    son 3 taramadan en az biri cizginin ustunde olmali (crossover).
+    """
+    line = bands["mavi_ust_disticizgi"]
+    if price >= line:
+        return False
+    last3 = recent[-3:] if len(recent) >= 3 else recent
+    if not last3:
+        return False
+    return any(p > line for p in last3)
