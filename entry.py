@@ -78,7 +78,8 @@ class EntryThread(threading.Thread):
         bands = calculate_bands(klines, self.config)
 
         # 3. Fiyat hafizasi ekle (lookback icin onceki fiyatlar lazim — eklemeden ONCE oku)
-        recent_prices = state.get_recent_prices(coin, self.lookback)
+        # En az 3 fiyat al (giris crossover icin), flag lookback'i daha buyukse onu kullan
+        recent_prices = state.get_recent_prices(coin, max(self.lookback, 3))
         state.add_price(coin, price, self.memory_seconds)
 
         # 4. Flag yonetimi
@@ -103,7 +104,7 @@ class EntryThread(threading.Thread):
                 state.set_flag(coin, "kirmizi_long", False)
                 long_flag = False
 
-        if long_flag and check_kirmizi_long_entry(price, bands):
+        if long_flag and check_kirmizi_long_entry(price, recent, bands):
             self.try_open_trade(coin, "kirmizi", "long", bands)
 
         # SHORT
@@ -117,7 +118,7 @@ class EntryThread(threading.Thread):
                 state.set_flag(coin, "kirmizi_short", False)
                 short_flag = False
 
-        if short_flag and check_kirmizi_short_entry(price, bands):
+        if short_flag and check_kirmizi_short_entry(price, recent, bands):
             self.try_open_trade(coin, "kirmizi", "short", bands)
 
     # ──────────────────────────────────────────
@@ -136,7 +137,7 @@ class EntryThread(threading.Thread):
                 state.set_flag(coin, "mavi_long", False)
                 long_flag = False
 
-        if long_flag and check_mavi_long_entry(price, bands):
+        if long_flag and check_mavi_long_entry(price, recent, bands):
             self.try_open_trade(coin, "mavi", "long", bands)
 
         # SHORT
@@ -150,7 +151,7 @@ class EntryThread(threading.Thread):
                 state.set_flag(coin, "mavi_short", False)
                 short_flag = False
 
-        if short_flag and check_mavi_short_entry(price, bands):
+        if short_flag and check_mavi_short_entry(price, recent, bands):
             self.try_open_trade(coin, "mavi", "short", bands)
 
     # ──────────────────────────────────────────
