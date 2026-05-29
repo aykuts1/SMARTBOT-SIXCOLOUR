@@ -1,0 +1,10 @@
+# Zorunlu
+BYBIT_API_KEY=
+BYBIT_API_SECRET=
+
+# Opsiyonel — Telegram bildirimleri
+TELEGRAM_TOKEN=
+TELEGRAM_CHAT_ID=
+
+# Opsiyonel — config dosyası path (varsayılan config.json)
+# BOT_CONFIG=config.json

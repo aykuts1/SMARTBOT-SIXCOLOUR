@@ -1,0 +1,46 @@
+{
+  "exchange": {
+    "leverage": 50,
+    "margin_type": "isolated",
+    "testnet": false
+  },
+  "indicators": {
+    "donchian_period": 50,
+    "ema_period": 800,
+    "atr_period": 14
+  },
+  "timeframes": {
+    "candle_interval": "15",
+    "candle_limit": 1000,
+    "price_scan_seconds": 5,
+    "balance_update_hours": 8
+  },
+  "risk": {
+    "stake_percent": 5,
+    "sl_percent": 2,
+    "risk_reward_ratio": 3
+  },
+  "limits": {
+    "max_positions": 20,
+    "max_trades_per_side": 3
+  },
+  "coins": [
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "DOGEUSDT", "AVAXUSDT",
+    "APTUSDT", "NEARUSDT", "XRPUSDT", "TRXUSDT", "ADAUSDT",
+    "DOTUSDT", "OPUSDT", "BNBUSDT", "1000PEPEUSDT", "TRUMPUSDT",
+    "CHZUSDT", "ATOMUSDT", "TONUSDT", "INJUSDT", "SUIUSDT"
+  ],
+  "reports": {
+    "hourly_report_enabled": true,
+    "z_report_hours": 8,
+    "x_report_hours": 24
+  },
+  "retry": {
+    "api_retry_count": 3,
+    "api_retry_delay_seconds": 5
+  },
+  "logging": {
+    "log_level": "INFO",
+    "log_file": "logs/bot.log"
+  }
+}
