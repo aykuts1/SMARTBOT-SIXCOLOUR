@@ -254,6 +254,8 @@ class TradingBot:
             except Exception as e:
                 log.error("%s mum güncelleme hatası: %s", sym, e)
                 self.reports.on_error()
+            finally:
+                time.sleep(1)  # Rate limit koruması — 20 coin × 1sn = ~20sn (15dk'da bir çalışır)
 
     # ---------- 5sn fiyat tick'i ----------
 
