@@ -51,6 +51,19 @@ class DataManager:
         self.balance = 0.0
         self.balance_lock = threading.Lock()
 
+        # ----------------------------------------------------------
+        # POZİSYON ÖNBELLEĞİ
+        # Scheduler her 1sn'de bir Bybit'ten tüm açık pozisyonları çeker
+        # ve buraya yazar. Mavi/Sarı thread'ler buradan okur.
+        # ----------------------------------------------------------
+        self.positions_lock = threading.Lock()
+        # set of (symbol, position_idx) tuple — Bybit'te açık olan pozisyonlar
+        self._open_positions_set = set()
+        # symbol -> {"long": avg_price|None, "short": avg_price|None}
+        self._open_positions_detail = {}
+        self._positions_last_sync_ts = 0.0
+        self._positions_sync_ok = False
+
         # Leverage'ı tüm coinlere ayarla
         self._setup_leverage()
 
@@ -307,6 +320,77 @@ class DataManager:
         except Exception as e:
             log.error(f"Pozisyon okuma hatası: {e}")
             return []
+
+    # ------------------------------------------------------------------
+    # POZİSYON ÖNBELLEĞİ — her 1sn'de scheduler tarafından güncellenir
+    # Mavi/Sarı thread'ler buradan okur (Bybit'e direkt sormaz).
+    # ------------------------------------------------------------------
+    def sync_open_positions(self):
+        """
+        Tek API çağrısıyla TÜM açık pozisyonları çeker ve önbelleğe yazar.
+        Hatada eski önbellek korunur (yanlış pozitif kapatma yapmasın diye).
+        """
+        try:
+            r = self.client.get_positions(category="linear", settleCoin="USDT")
+            lst = r.get("result", {}).get("list", [])
+        except Exception as e:
+            log.error(f"Pozisyon senkron hatası: {e}")
+            with self.positions_lock:
+                self._positions_sync_ok = False
+            return False
+
+        new_set = set()
+        new_detail = {}
+        for p in lst:
+            try:
+                size = float(p.get("size", 0))
+                if size <= 0:
+                    continue
+                symbol = p.get("symbol")
+                pidx = int(p.get("positionIdx", 0))
+                avg = float(p.get("avgPrice", 0)) or None
+                new_set.add((symbol, pidx))
+                detail = new_detail.setdefault(symbol, {"long": None, "short": None})
+                if pidx == 1:
+                    detail["long"] = avg
+                elif pidx == 2:
+                    detail["short"] = avg
+            except (ValueError, TypeError):
+                continue
+
+        with self.positions_lock:
+            self._open_positions_set = new_set
+            self._open_positions_detail = new_detail
+            self._positions_last_sync_ts = time.time()
+            self._positions_sync_ok = True
+        return True
+
+    def is_position_open(self, symbol, position_idx):
+        """
+        Önbellekten oku. Senkronizasyon hiç yapılmamış veya son senkron
+        başarısız olduysa True döndürür (yanlış pozitif kapatma riskini engelle).
+        """
+        with self.positions_lock:
+            if not self._positions_sync_ok:
+                return True
+            return (symbol, position_idx) in self._open_positions_set
+
+    def positions_synced(self):
+        """En az bir başarılı senkronizasyon yapıldı mı?"""
+        with self.positions_lock:
+            return self._positions_sync_ok
+
+    def get_position_avg_from_cache(self, symbol, position_idx):
+        """Önbellekten ortalama açılış fiyatı (yoksa None)."""
+        with self.positions_lock:
+            d = self._open_positions_detail.get(symbol)
+            if not d:
+                return None
+            if position_idx == 1:
+                return d.get("long")
+            if position_idx == 2:
+                return d.get("short")
+            return None
 
     def get_instrument_info(self, symbol):
         """Coin için minQty, qtyStep, tickSize bilgisi."""
