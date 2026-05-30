@@ -25,7 +25,8 @@ class Config:
         self.candle_count = int(data["candle_count"])
         self.price_update_interval_sec = int(data["price_update_interval_sec"])
         self.candle_fetch_delay_sec = int(data["candle_fetch_delay_sec"])
-        self.thread_scan_interval_sec = int(data.get("thread_scan_interval_sec", 5))
+        self.thread_scan_interval_sec = int(data.get("thread_scan_interval_sec", 1))
+        self.position_sync_interval_sec = int(data.get("position_sync_interval_sec", 1))
 
         # Environment variables (Railway)
         self.bybit_api_key = os.getenv("BYBIT_API_KEY", "")
@@ -56,5 +57,6 @@ class Config:
             "Mum Sayısı": self.candle_count,
             "Fiyat Güncelleme (sn)": self.price_update_interval_sec,
             "Thread Tarama (sn)": self.thread_scan_interval_sec,
+            "Pozisyon Senkron (sn)": self.position_sync_interval_sec,
             "Coin Bekleme (sn)": self.candle_fetch_delay_sec,
         }
