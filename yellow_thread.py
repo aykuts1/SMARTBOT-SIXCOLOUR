@@ -222,14 +222,9 @@ class YellowThread(threading.Thread):
     # SCAN
     # ------------------------------------------------------------------
     def scan(self):
-        with self.tables_lock:
-            ids_to_remove = []
-            for red_id, tbl in self.tables.items():
-                red = self.tm.slots.get_red_for(tbl.symbol, tbl.red_side)
-                if red is None or red.id != red_id or red.closed:
-                    ids_to_remove.append(red_id)
-            for rid in ids_to_remove:
-                self.tables.pop(rid, None)
+        # ÖNCE: Kırmızı'sı yok olan tabloları temizle.
+        # Hem bot hafızası hem Bybit pozisyon önbelleği kontrol edilir.
+        self._cleanup_dead_tables()
 
         with self.tables_lock:
             tbls = list(self.tables.values())
@@ -237,7 +232,41 @@ class YellowThread(threading.Thread):
         for tbl in tbls:
             if self._stop.is_set():
                 return
-            self._tick_table(tbl)
+            try:
+                self._tick_table(tbl)
+            except Exception as e:
+                log.exception(f"YellowThread tick hatası ({tbl.symbol}): {e}")
+
+    def _cleanup_dead_tables(self):
+        """
+        Kırmızı'sı bot hafızasında yoksa/kapalıysa veya Bybit önbelleğinde
+        artık yoksa → Sarı'yı kapat + tabloyu sil.
+        """
+        with self.tables_lock:
+            ids_snapshot = list(self.tables.items())
+
+        for red_id, tbl in ids_snapshot:
+            red = self.tm.slots.get_red_for(tbl.symbol, tbl.red_side)
+            red_missing_in_bot = (red is None or red.id != red_id or red.closed)
+
+            red_pidx = 1 if tbl.red_side == "LONG" else 2
+            red_missing_on_bybit = False
+            if self.dm.positions_synced():
+                if not self.dm.is_position_open(tbl.symbol, red_pidx):
+                    red_missing_on_bybit = True
+
+            if red_missing_in_bot or red_missing_on_bybit:
+                if tbl.active_trade and not tbl.active_trade.closed:
+                    reason = ("SARI KIRMIZI KAPANDI" if red_missing_in_bot
+                              else "SARI KIRMIZI BYBIT'TE YOK")
+                    curr = self.dm.get_last_price(tbl.symbol)
+                    try:
+                        self.tm.close_trade(tbl.active_trade, reason, curr)
+                    except Exception as e:
+                        log.error(f"Sarı acil kapatma hatası ({tbl.symbol}): {e}")
+                with self.tables_lock:
+                    self.tables.pop(red_id, None)
+
 
     def _tick_table(self, tbl):
         curr = self.dm.get_last_price(tbl.symbol)
