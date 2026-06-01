@@ -91,8 +91,13 @@ class DataManager:
                     sellLeverage=str(self.cfg.leverage),
                 )
             except Exception as e:
-                # Genelde "not modified" hatası verir, sorun değil
                 err = str(e).lower()
+                # 100028 = UTA hesabında bu endpoint yasak (margin mode hesap seviyesinde,
+                # default cross). 110026 / "not modified" = zaten istenen modda.
+                if "100028" in err or "unified account is forbidden" in err:
+                    log.info("UTA hesabı tespit edildi — margin mode setup atlanıyor "
+                             "(UTA varsayılan: cross).")
+                    return
                 if "not modified" not in err and "110026" not in err:
                     log.warning(f"Margin mode ayarlanamadı {symbol}: {e}")
 
